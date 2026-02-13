@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+  <article class="note-card">
+    <header class="note-card-header">
+      <h2>{{ note.title }}</h2>
+      <time datetime="{{ note.date_str }}">{{ note.date_str }}</time>
+    </header>
+    <div class="note-content">
+      {{ note.content_html | safe }}
+    </div>
+    <p class="permalink"><a href="./">Permalink</a></p>
+    <p class="back-link"><a href="{{ home_href }}">Back to timeline</a></p>
+  </article>
+{% endblock %}

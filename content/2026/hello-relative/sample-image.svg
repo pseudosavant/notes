@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="420" viewBox="0 0 960 420">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d7efe7"/>
+      <stop offset="100%" stop-color="#bfd8cf"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="420" fill="url(#g)"/>
+  <rect x="40" y="40" width="880" height="340" rx="24" fill="#fffefb" stroke="#8db8aa"/>
+  <text x="480" y="195" text-anchor="middle" font-size="50" font-family="Georgia, serif" fill="#244b41">
+    Local Asset Demo
+  </text>
+  <text x="480" y="245" text-anchor="middle" font-size="24" font-family="Georgia, serif" fill="#46695f">
+    Referenced as ./sample-image.svg
+  </text>
+</svg>
