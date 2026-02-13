@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
   <section class="timeline-heading">
-    <h2>Timeline</h2>
+    <h2><i class="fa-solid fa-feather-pointed" aria-hidden="true"></i>Timeline</h2>
     {% if total_pages > 1 %}
       <p>Page {{ page_number }} of {{ total_pages }}</p>
     {% endif %}
@@ -12,13 +12,13 @@
       <article class="note-card">
         <header class="note-card-header">
           <h3><a href="{{ item.href }}">{{ item.note.title }}</a></h3>
-          <time datetime="{{ item.note.date_str }}">{{ item.note.date_str }}</time>
+          <time datetime="{{ item.note.date_str }}"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i>{{ item.note.date_str }}</time>
         </header>
         <div class="note-content">
           {{ item.content_html | safe }}
         </div>
         <p class="permalink">
-          <a href="{{ item.href }}">Permalink</a>
+          <a href="{{ item.href }}"><i class="fa-solid fa-link" aria-hidden="true"></i>Permalink</a>
         </p>
       </article>
     {% endfor %}
@@ -31,12 +31,12 @@
   {% if newer_href or older_href %}
     <nav class="pager">
       {% if newer_href %}
-        <a class="pager-link" href="{{ newer_href }}">Newer</a>
+        <a class="pager-link" href="{{ newer_href }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Newer</a>
       {% else %}
         <span></span>
       {% endif %}
       {% if older_href %}
-        <a class="pager-link" href="{{ older_href }}">Older</a>
+        <a class="pager-link" href="{{ older_href }}">Older<i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
       {% endif %}
     </nav>
   {% endif %}

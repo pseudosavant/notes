@@ -49,7 +49,9 @@ CONFIG_PATH = ROOT / "notes.config.toml"
 DIST_DIR = ROOT / "dist"
 NOTES_OUT_DIR = DIST_DIR / "notes"
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+TIME_PATTERN = re.compile(r"^\d{2}:\d{2}(?::\d{2})?$")
 URL_ATTR_PATTERN = re.compile(r'(?P<attr>\b(?:href|src))="(?P<url>[^"]+)"')
+LOGO_ASSET_CANDIDATES = ["pseudosavant-icon.png", "pseudosavant-icon.svg"]
 
 
 class BuildError(Exception):
@@ -70,7 +72,10 @@ class Note:
     slug: str
     title: str
     date: dt.date
+    time: dt.time
     date_str: str
+    time_str: str
+    published_at: dt.datetime
     content_html: str
     note_rel_dir: str
 
@@ -197,7 +202,12 @@ def to_bool(value: Any) -> bool:
 
 
 def normalize_date(value: Any) -> tuple[dt.date, str]:
-    if isinstance(value, dt.date):
+    if isinstance(value, dt.datetime):
+        if value.time() != dt.time(0, 0):
+            raise ValueError("must be YYYY-MM-DD (date only; put time in `time` field)")
+        date_obj = value.date()
+        date_str = date_obj.isoformat()
+    elif isinstance(value, dt.date):
         date_obj = value
         date_str = date_obj.isoformat()
     elif isinstance(value, str):
@@ -208,6 +218,30 @@ def normalize_date(value: Any) -> tuple[dt.date, str]:
     else:
         raise ValueError("must be a string in YYYY-MM-DD format")
     return date_obj, date_str
+
+
+def normalize_time(value: Any) -> tuple[dt.time, str]:
+    if isinstance(value, dt.datetime):
+        time_obj = value.time()
+    elif isinstance(value, dt.time):
+        time_obj = value
+    elif isinstance(value, str):
+        if not TIME_PATTERN.match(value):
+            raise ValueError("must be HH:MM or HH:MM:SS")
+        try:
+            time_obj = dt.time.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError("must be HH:MM or HH:MM:SS") from exc
+    else:
+        raise ValueError("must be a string in HH:MM or HH:MM:SS format")
+
+    if time_obj.tzinfo is not None:
+        raise ValueError("must not include timezone")
+    if time_obj.microsecond != 0:
+        raise ValueError("must not include sub-second precision")
+
+    normalized = dt.time(time_obj.hour, time_obj.minute, time_obj.second)
+    return normalized, normalized.isoformat()
 
 
 def parse_note(markdown_path: Path) -> tuple[Note | None, str | None]:
@@ -225,6 +259,7 @@ def parse_note(markdown_path: Path) -> tuple[Note | None, str | None]:
     meta = post.metadata or {}
     title = meta.get("title")
     date_value = meta.get("date")
+    time_value = meta.get("time")
 
     if not isinstance(title, str) or not title.strip():
         return None, "missing required `title` field"
@@ -235,6 +270,15 @@ def parse_note(markdown_path: Path) -> tuple[Note | None, str | None]:
         date_obj, date_str = normalize_date(date_value)
     except Exception as exc:
         return None, f"invalid `date` field: {exc}"
+
+    if time_value is None:
+        time_obj = dt.time(0, 0, 0)
+        time_str = "00:00:00"
+    else:
+        try:
+            time_obj, time_str = normalize_time(time_value)
+        except Exception as exc:
+            return None, f"invalid `time` field: {exc}"
 
     if to_bool(meta.get("draft", False)):
         return None, None
@@ -250,7 +294,10 @@ def parse_note(markdown_path: Path) -> tuple[Note | None, str | None]:
             slug=slug,
             title=title.strip(),
             date=date_obj,
+            time=time_obj,
             date_str=date_str,
+            time_str=time_str,
+            published_at=dt.datetime.combine(date_obj, time_obj),
             content_html=markdown_to_html(post.content),
             note_rel_dir=note_rel_dir,
         ),
@@ -290,7 +337,14 @@ def discover_notes() -> list[Note]:
         details = "\n".join(f"- {line}" for line in errors)
         raise BuildError(f"Note validation failed:\n{details}")
 
-    notes.sort(key=lambda n: (-n.date.toordinal(), n.slug.lower(), n.note_rel_dir))
+    notes.sort(
+        key=lambda n: (
+            -n.date.toordinal(),
+            -(n.time.hour * 3600 + n.time.minute * 60 + n.time.second),
+            n.slug.lower(),
+            n.note_rel_dir,
+        )
+    )
     return notes
 
 
@@ -372,7 +426,21 @@ def note_url_for_feed(note: Note, site_url: str) -> str:
     return rel
 
 
-def write_note_pages(env: Environment, notes: list[Note], cfg: SiteConfig) -> None:
+def resolve_logo_asset() -> str:
+    for name in LOGO_ASSET_CANDIDATES:
+        if (STATIC_DIR / name).exists():
+            return f"notes/assets/{name}"
+    raise BuildError(
+        "Missing logo asset in static/. Expected one of: "
+        + ", ".join(LOGO_ASSET_CANDIDATES)
+    )
+
+
+def logo_template_path(page_dir: str) -> str:
+    return rel_path(page_dir, resolve_logo_asset(), is_dir=False)
+
+
+def write_note_pages(env: Environment, notes: list[Note], cfg: SiteConfig, build_year: int) -> None:
     template = env.get_template("note.html")
     for note in notes:
         copy_note_assets(note)
@@ -382,6 +450,7 @@ def write_note_pages(env: Environment, notes: list[Note], cfg: SiteConfig) -> No
         home_href = rel_path(page_dir, "notes", is_dir=True)
         rss_href = rel_path(page_dir, "notes/rss.xml", is_dir=False)
         json_href = rel_path(page_dir, "notes/feed.json", is_dir=False)
+        logo_href = logo_template_path(page_dir)
 
         html = template.render(
             site_title=cfg.site_title,
@@ -390,13 +459,17 @@ def write_note_pages(env: Environment, notes: list[Note], cfg: SiteConfig) -> No
             home_href=home_href,
             rss_href=rss_href,
             json_href=json_href,
+            logo_href=logo_href,
+            copyright_year=build_year,
             note=note,
         )
         output_path = note.out_dir / "index.html"
         output_path.write_text(html, encoding="utf-8")
 
 
-def write_timeline_pages(env: Environment, notes: list[Note], cfg: SiteConfig) -> None:
+def write_timeline_pages(
+    env: Environment, notes: list[Note], cfg: SiteConfig, build_year: int
+) -> None:
     template = env.get_template("timeline.html")
     pages = split_pages(notes, cfg.items_per_page)
     total_pages = len(pages)
@@ -428,6 +501,7 @@ def write_timeline_pages(env: Environment, notes: list[Note], cfg: SiteConfig) -
         home_href = rel_path(current_dir, "notes", is_dir=True)
         rss_href = rel_path(current_dir, "notes/rss.xml", is_dir=False)
         json_href = rel_path(current_dir, "notes/feed.json", is_dir=False)
+        logo_href = logo_template_path(current_dir)
 
         html = template.render(
             site_title=cfg.site_title,
@@ -436,6 +510,8 @@ def write_timeline_pages(env: Environment, notes: list[Note], cfg: SiteConfig) -
             home_href=home_href,
             rss_href=rss_href,
             json_href=json_href,
+            logo_href=logo_href,
+            copyright_year=build_year,
             notes=page_notes,
             page_number=page_number,
             total_pages=total_pages,
@@ -448,8 +524,8 @@ def write_timeline_pages(env: Environment, notes: list[Note], cfg: SiteConfig) -
         out_path.write_text(html, encoding="utf-8")
 
 
-def rfc2822_date(day: dt.date) -> str:
-    timestamp = dt.datetime.combine(day, dt.time(0, 0, 0), tzinfo=dt.timezone.utc)
+def rfc2822_datetime(moment: dt.datetime) -> str:
+    timestamp = moment.replace(tzinfo=dt.timezone.utc)
     return timestamp.strftime("%a, %d %b %Y %H:%M:%S +0000")
 
 
@@ -473,7 +549,7 @@ def write_rss(notes: list[Note], cfg: SiteConfig) -> None:
         guid = ET.SubElement(item, "guid")
         guid.text = item_url
         guid.set("isPermaLink", "true" if cfg.site_url else "false")
-        ET.SubElement(item, "pubDate").text = rfc2822_date(note.date)
+        ET.SubElement(item, "pubDate").text = rfc2822_datetime(note.published_at)
         ET.SubElement(item, "{http://purl.org/rss/1.0/modules/content/}encoded").text = (
             note.content_html
         )
@@ -492,7 +568,7 @@ def write_json_feed(notes: list[Note], cfg: SiteConfig) -> None:
                 "id": item_url,
                 "url": item_url,
                 "title": note.title,
-                "date_published": f"{note.date_str}T00:00:00Z",
+                "date_published": f"{note.date_str}T{note.time_str}Z",
                 "content_html": note.content_html,
             }
         )
@@ -533,6 +609,7 @@ def remove_tree(path: Path) -> None:
 
 def build_site(clean_dist: bool) -> None:
     cfg = read_config(CONFIG_PATH)
+    build_year = dt.date.today().year
 
     if clean_dist:
         remove_tree(DIST_DIR)
@@ -541,10 +618,11 @@ def build_site(clean_dist: bool) -> None:
 
     notes = discover_notes()
     env = get_environment()
+    env.globals["copyright_year"] = build_year
 
     copy_static_assets()
-    write_note_pages(env, notes, cfg)
-    write_timeline_pages(env, notes, cfg)
+    write_note_pages(env, notes, cfg, build_year=build_year)
+    write_timeline_pages(env, notes, cfg, build_year=build_year)
     write_rss(notes, cfg)
     write_json_feed(notes, cfg)
 
@@ -558,30 +636,48 @@ class DebouncedRebuilder(FileSystemEventHandler):
         self.callback = callback
         self._lock = threading.Lock()
         self._timer: threading.Timer | None = None
+        self._running = False
+        self._queued = False
 
     def on_any_event(self, event: FileSystemEvent) -> None:
-        if event.is_directory:
-            return
         with self._lock:
+            self._queued = True
             if self._timer is not None:
                 self._timer.cancel()
-            self._timer = threading.Timer(self.delay_seconds, self._run)
+            self._timer = threading.Timer(self.delay_seconds, self._drain)
             self._timer.daemon = True
             self._timer.start()
 
-    def _run(self) -> None:
-        try:
-            self.callback()
-        except BuildError as exc:
-            print(str(exc), file=sys.stderr)
-        except Exception as exc:  # pragma: no cover
-            print(f"Unexpected error: {exc}", file=sys.stderr)
+    def _drain(self) -> None:
+        while True:
+            with self._lock:
+                if self._running:
+                    return
+                if not self._queued:
+                    return
+                self._queued = False
+                self._running = True
+                self._timer = None
+
+            try:
+                self.callback()
+            except BuildError as exc:
+                print(str(exc), file=sys.stderr)
+            except Exception as exc:  # pragma: no cover
+                print(f"Unexpected error: {exc}", file=sys.stderr)
+            finally:
+                with self._lock:
+                    self._running = False
+                    rerun = self._queued
+                if not rerun:
+                    return
 
     def shutdown(self) -> None:
         with self._lock:
             if self._timer is not None:
                 self._timer.cancel()
                 self._timer = None
+            self._queued = False
 
 
 def watch(clean_dist: bool, debounce_ms: int) -> None:

@@ -4,20 +4,35 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ page_title }} | {{ site_title }}</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
   <link rel="stylesheet" href="{{ css_href }}">
 </head>
 <body>
   <header class="site-header">
     <div class="site-header-inner">
-      <h1><a href="{{ home_href }}">{{ site_title }}</a></h1>
-      <nav>
-        <a href="{{ rss_href }}">RSS</a>
-        <a href="{{ json_href }}">JSON</a>
+      <h1 class="brand">
+        <a class="brand-link" href="{{ home_href }}">
+          <img class="brand-bird" src="{{ logo_href }}" alt="Pseudo-savant icon mark">
+          <span>{{ site_title }}</span>
+        </a>
+      </h1>
+      <nav class="site-nav">
+        <a href="https://pseudosavant.com"><i class="fa-solid fa-house" aria-hidden="true"></i>Homepage</a>
+        <a href="{{ rss_href }}"><i class="fa-solid fa-square-rss" aria-hidden="true"></i>RSS</a>
+        <a href="{{ json_href }}"><i class="fa-solid fa-code" aria-hidden="true"></i>JSON</a>
       </nav>
     </div>
   </header>
   <main class="container">
     {% block content %}{% endblock %}
   </main>
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <div class="logo-mark" aria-hidden="true">
+        <a href="https://pseudosavant.com"><img src="{{ logo_href }}" alt=""></a>
+      </div>
+      <p>Copyright &copy; {{ copyright_year }} <a href="https://pseudosavant.com">Paul Ellis</a></p>
+    </div>
+  </footer>
 </body>
 </html>

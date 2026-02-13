@@ -24,6 +24,7 @@ Each `index.md` must start with YAML front matter:
 ---
 title: My Note Title
 date: "2026-02-13"
+time: "14:37:05"
 draft: false
 ---
 ```
@@ -35,6 +36,7 @@ Required fields:
 
 Optional field:
 
+- `time` (`HH:MM` or `HH:MM:SS`) for same-day ordering precision; omitted defaults to `00:00:00`.
 - `draft: true` excludes the note from output, timeline, pagination, and feeds.
 
 The build fails with clear errors for missing/invalid required front matter in note `index.md` files.
@@ -93,6 +95,18 @@ Preview entry point is:
 
 `http://127.0.0.1:8000/notes/`
 
+Quick publish command (creates one short note, commits only that new file, pushes):
+
+```bash
+uv run tweet.py "Shipping a small update."
+```
+
+Optional:
+
+```bash
+uv run tweet.py --no-push "Drafting from terminal."
+```
+
 One-shot build:
 
 ```bash
@@ -107,7 +121,7 @@ uv run build.py --clean
 
 ## Build behavior
 
-- Notes are sorted by front matter `date` descending, then slug (stable tiebreaker).
+- Notes are sorted by front matter `date` descending, then optional `time` descending, then slug (stable tiebreaker).
 - Latest `items_per_page` notes render as full-content posts on the timeline.
 - Pagination uses relative Newer/Older links.
 - Internal HTML links emitted by the generator are relative (no `/notes/...` absolute paths).
