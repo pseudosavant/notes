@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="420" viewBox="0 0 960 420">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7fc8f8"/>
+      <stop offset="100%" stop-color="#5aa9e6"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="420" fill="url(#bg)"/>
+  <rect x="36" y="36" width="888" height="348" rx="20" fill="#f9f9f9" stroke="#1d6fa8" stroke-width="3"/>
+  <circle cx="138" cy="104" r="26" fill="#ff6392"/>
+  <rect x="186" y="82" width="294" height="44" rx="8" fill="#fff8d2"/>
+  <text x="202" y="111" font-size="24" font-family="Segoe UI, Arial, sans-serif" fill="#10263f">
+    Relative Image Example
+  </text>
+  <text x="88" y="192" font-size="34" font-family="Segoe UI, Arial, sans-serif" fill="#10263f">
+    ./showcase-image.svg
+  </text>
+  <text x="88" y="244" font-size="22" font-family="Segoe UI, Arial, sans-serif" fill="#355a78">
+    Co-located with index.md for preview + publish portability.
+  </text>
+</svg>
