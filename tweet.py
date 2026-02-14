@@ -117,15 +117,17 @@ def choose_slug_and_path(now: dt.datetime, body_text: str) -> tuple[str, Path]:
     return slug, note_dir / "index.md"
 
 
-def build_markdown(title: str, date_str: str, time_str: str, body_text: str) -> str:
-    return (
+def build_markdown(title: str, date_str: str, time_str: str, body_text: str, draft: bool = False) -> str:
+    front_matter = (
         "---\n"
         f"title: {yaml_quote(title)}\n"
         f'date: "{date_str}"\n'
         f'time: "{time_str}"\n'
-        "---\n\n"
-        f"{body_text}\n"
     )
+    if draft:
+        front_matter += "draft: true\n"
+    front_matter += "---\n\n"
+    return front_matter + f"{body_text}\n"
 
 
 def run_git(args: list[str]) -> None:
@@ -157,6 +159,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Create and commit the note, but do not run git push.",
     )
+    parser.add_argument(
+        "--draft",
+        action="store_true",
+        help="Include draft: true in front matter.",
+    )
     return parser.parse_args()
 
 
@@ -175,7 +182,7 @@ def main() -> int:
 
     slug, markdown_path = choose_slug_and_path(now, body_text)
     markdown_path.parent.mkdir(parents=True, exist_ok=True)
-    markdown_path.write_text(build_markdown(title, date_str, time_str, body_text), encoding="utf-8")
+    markdown_path.write_text(build_markdown(title, date_str, time_str, body_text, draft=args.draft), encoding="utf-8")
 
     rel_path = markdown_path.relative_to(ROOT).as_posix()
     commit_message = f"tweet: {date_str} {slug}"

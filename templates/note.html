@@ -3,7 +3,7 @@
   <article class="note-card">
     <header class="note-card-header">
       <h2>{{ note.title }}</h2>
-      <time datetime="{{ note.date_str }}"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i>{{ note.date_str }}</time>
+      <time datetime="{{ note.date_str }}{% if note.has_time %}T{{ note.time_str }}{% endif %}"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i>{{ note.date_str }}{% if note.has_time %} {{ note.time_str }}{% endif %}</time>
     </header>
     <div class="note-content">
       {{ note.content_html | safe }}

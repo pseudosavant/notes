@@ -12,7 +12,7 @@
       <article class="note-card">
         <header class="note-card-header">
           <h3><a href="{{ item.href }}">{{ item.note.title }}</a></h3>
-          <time datetime="{{ item.note.date_str }}"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i>{{ item.note.date_str }}</time>
+          <time datetime="{{ item.note.date_str }}{% if item.note.has_time %}T{{ item.note.time_str }}{% endif %}"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i>{{ item.note.date_str }}{% if item.note.has_time %} {{ item.note.time_str }}{% endif %}</time>
         </header>
         <div class="note-content">
           {{ item.content_html | safe }}

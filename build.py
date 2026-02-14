@@ -76,6 +76,7 @@ class Note:
     time: dt.time
     date_str: str
     time_str: str
+    has_time: bool
     published_at: dt.datetime
     content_html: str
     note_rel_dir: str
@@ -245,7 +246,7 @@ def normalize_time(value: Any) -> tuple[dt.time, str]:
     return normalized, normalized.isoformat()
 
 
-def parse_note(markdown_path: Path) -> tuple[Note | None, str | None]:
+def parse_note(markdown_path: Path, include_drafts: bool = False) -> tuple[Note | None, str | None]:
     raw = markdown_path.read_text(encoding="utf-8")
     if raw.startswith("\ufeff"):
         raw = raw[1:]
@@ -275,13 +276,15 @@ def parse_note(markdown_path: Path) -> tuple[Note | None, str | None]:
     if time_value is None:
         time_obj = dt.time(0, 0, 0)
         time_str = "00:00:00"
+        has_time = False
     else:
         try:
             time_obj, time_str = normalize_time(time_value)
+            has_time = True
         except Exception as exc:
             return None, f"invalid `time` field: {exc}"
 
-    if to_bool(meta.get("draft", False)):
+    if to_bool(meta.get("draft", False)) and not include_drafts:
         return None, None
 
     slug = markdown_path.parent.name
@@ -298,6 +301,7 @@ def parse_note(markdown_path: Path) -> tuple[Note | None, str | None]:
             time=time_obj,
             date_str=date_str,
             time_str=time_str,
+            has_time=has_time,
             published_at=dt.datetime.combine(date_obj, time_obj),
             content_html=markdown_to_html(post.content),
             note_rel_dir=note_rel_dir,
@@ -306,7 +310,7 @@ def parse_note(markdown_path: Path) -> tuple[Note | None, str | None]:
     )
 
 
-def discover_notes() -> list[Note]:
+def discover_notes(include_drafts: bool = False) -> list[Note]:
     if not CONTENT_DIR.exists():
         return []
 
@@ -317,7 +321,7 @@ def discover_notes() -> list[Note]:
     seen_rel_dirs: dict[str, Path] = {}
 
     for markdown_path in candidates:
-        note, error = parse_note(markdown_path)
+        note, error = parse_note(markdown_path, include_drafts=include_drafts)
         rel_path_str = markdown_path.relative_to(ROOT).as_posix()
         if error:
             errors.append(f"{rel_path_str}: {error}")
@@ -608,7 +612,7 @@ def remove_tree(path: Path) -> None:
             time.sleep(0.2 * (attempt + 1))
 
 
-def build_site(clean_dist: bool) -> None:
+def build_site(clean_dist: bool, include_drafts: bool = False) -> None:
     cfg = read_config(CONFIG_PATH)
     build_year = dt.date.today().year
 
@@ -617,7 +621,7 @@ def build_site(clean_dist: bool) -> None:
     remove_tree(NOTES_OUT_DIR)
     NOTES_OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    notes = discover_notes()
+    notes = discover_notes(include_drafts=include_drafts)
     env = get_environment()
     env.globals["copyright_year"] = build_year
 
@@ -681,10 +685,10 @@ class DebouncedRebuilder(FileSystemEventHandler):
             self._queued = False
 
 
-def watch(clean_dist: bool, debounce_ms: int) -> None:
+def watch(clean_dist: bool, debounce_ms: int, include_drafts: bool = False) -> None:
     def rebuild() -> None:
         print("Rebuilding...")
-        build_site(clean_dist=clean_dist)
+        build_site(clean_dist=clean_dist, include_drafts=include_drafts)
 
     rebuild()
     observer = Observer()
@@ -724,6 +728,11 @@ def parse_args() -> argparse.Namespace:
         default=350,
         help="Debounce delay for watch mode in milliseconds (default: 350).",
     )
+    parser.add_argument(
+        "--include-drafts",
+        action="store_true",
+        help="Include notes marked with draft: true.",
+    )
     return parser.parse_args()
 
 
@@ -731,9 +740,13 @@ def main() -> int:
     args = parse_args()
     try:
         if args.watch:
-            watch(clean_dist=args.clean, debounce_ms=args.debounce_ms)
+            watch(
+                clean_dist=args.clean,
+                debounce_ms=args.debounce_ms,
+                include_drafts=args.include_drafts,
+            )
         else:
-            build_site(clean_dist=args.clean)
+            build_site(clean_dist=args.clean, include_drafts=args.include_drafts)
     except BuildError as exc:
         print(str(exc), file=sys.stderr)
         return 1
