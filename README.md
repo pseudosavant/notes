@@ -95,10 +95,34 @@ Preview entry point is:
 
 `http://127.0.0.1:8000/notes/`
 
-Quick publish command (creates one short note, commits only that new file, pushes):
+Quick publish command (text only):
 
 ```bash
 uv run tweet.py "Shipping a small update."
+```
+
+With image:
+
+```bash
+uv run tweet.py "Shipping a small update." "C:\path\to\image.png"
+```
+
+With image and custom alt text:
+
+```bash
+uv run tweet.py "Shipping a small update." "C:\path\to\image.png" "Alt text for accessibility"
+```
+
+With appended embed/file content:
+
+```bash
+uv run tweet.py "Check out this music!" --text-file "C:\Users\paul\Downloads\apple-music-embed.html"
+```
+
+With explicit title override:
+
+```bash
+uv run tweet.py "Check out this music!" --title "Now Playing"
 ```
 
 Optional:
@@ -106,6 +130,8 @@ Optional:
 ```bash
 uv run tweet.py --no-push "Drafting from terminal."
 ```
+
+If `alt_text` is omitted, the image filename is used.
 
 One-shot build:
 

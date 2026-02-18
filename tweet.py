@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -19,6 +20,11 @@ CONTENT_DIR = ROOT / "content"
 
 class TweetError(Exception):
     pass
+
+
+def log_status(message: str) -> None:
+    timestamp = dt.datetime.now().strftime("%H:%M:%S")
+    print(f"[{timestamp}] {message}", flush=True)
 
 
 def ordinal_suffix(day: int) -> str:
@@ -117,7 +123,15 @@ def choose_slug_and_path(now: dt.datetime, body_text: str) -> tuple[str, Path]:
     return slug, note_dir / "index.md"
 
 
-def build_markdown(title: str, date_str: str, time_str: str, body_text: str, draft: bool = False) -> str:
+def build_markdown(
+    title: str,
+    date_str: str,
+    time_str: str,
+    body_text: str,
+    image_filename: str | None = None,
+    alt_text: str | None = None,
+    draft: bool = False,
+) -> str:
     front_matter = (
         "---\n"
         f"title: {yaml_quote(title)}\n"
@@ -127,7 +141,11 @@ def build_markdown(title: str, date_str: str, time_str: str, body_text: str, dra
     if draft:
         front_matter += "draft: true\n"
     front_matter += "---\n\n"
-    return front_matter + f"{body_text}\n"
+    markdown_body = f"{body_text}\n"
+    if image_filename:
+        resolved_alt = (alt_text or "").strip() or image_filename
+        markdown_body += f"\n![{resolved_alt}](./{image_filename})\n"
+    return front_matter + markdown_body
 
 
 def run_git(args: list[str]) -> None:
@@ -147,12 +165,29 @@ def run_git(args: list[str]) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Create a short note, then stage/commit/push only that new file."
+        description="Create a short note (optionally with embed HTML and image), then stage/commit/push only those new files."
     )
     parser.add_argument(
         "text",
-        nargs="+",
         help='Tweet text. Example: uv run tweet.py "Shipping the fix now."',
+    )
+    parser.add_argument(
+        "image_path",
+        nargs="?",
+        help="Optional path to image file to include in the post.",
+    )
+    parser.add_argument(
+        "alt_text",
+        nargs="?",
+        help="Optional image alt text (used only when image_path is provided). Defaults to the image filename.",
+    )
+    parser.add_argument(
+        "--text-file",
+        help="Optional path to a text/HTML file to append after the main text body.",
+    )
+    parser.add_argument(
+        "--title",
+        help="Optional note title. If omitted, a date-based title is generated.",
     )
     parser.add_argument(
         "--no-push",
@@ -169,34 +204,98 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    log_status("Starting tweet publish flow")
 
-    body_text = " ".join(args.text).strip()
+    body_text = args.text.strip()
     if not body_text:
         print("Tweet text cannot be empty.", file=sys.stderr)
         return 1
 
+    if args.text_file:
+        log_status("Reading --text-file content")
+        text_file = Path(args.text_file).expanduser()
+        if not text_file.is_file():
+            print(f"Text file not found: {text_file}", file=sys.stderr)
+            return 1
+        try:
+            appended_text = text_file.read_text(encoding="utf-8").strip()
+        except OSError as exc:
+            print(f"Failed to read text file: {exc}", file=sys.stderr)
+            return 1
+        if appended_text:
+            body_text = f"{body_text}\n\n{appended_text}"
+
+    source_image: Path | None = None
+    if args.image_path:
+        log_status("Validating image path")
+        source_image = Path(args.image_path).expanduser()
+        if not source_image.is_file():
+            print(f"Image file not found: {source_image}", file=sys.stderr)
+            return 1
+
     now = dt.datetime.now()
     date_str = now.date().isoformat()
     time_str = now.strftime("%H:%M:%S")
-    title = pick_title(now.date())
+    title = (args.title or "").strip() or pick_title(now.date())
 
     slug, markdown_path = choose_slug_and_path(now, body_text)
-    markdown_path.parent.mkdir(parents=True, exist_ok=True)
-    markdown_path.write_text(build_markdown(title, date_str, time_str, body_text, draft=args.draft), encoding="utf-8")
+    note_dir = markdown_path.parent
+    note_dir.mkdir(parents=True, exist_ok=True)
+    log_status(f"Preparing note folder {note_dir.relative_to(ROOT).as_posix()}")
 
-    rel_path = markdown_path.relative_to(ROOT).as_posix()
+    image_name: str | None = None
+    image_target: Path | None = None
+    image_alt_text: str | None = None
+    if source_image:
+        image_name = source_image.name
+        image_target = note_dir / image_name
+        n = 2
+        while image_target.exists():
+            image_name = f"{source_image.stem}-{n}{source_image.suffix}"
+            image_target = note_dir / image_name
+            n += 1
+
+        image_alt_text = (args.alt_text or "").strip() or image_name
+
+        try:
+            log_status(f"Copying image to {image_target.relative_to(ROOT).as_posix()}")
+            shutil.copy2(source_image, image_target)
+        except OSError as exc:
+            print(f"Failed to copy image: {exc}", file=sys.stderr)
+            return 1
+
+    log_status(f"Writing note markdown {markdown_path.relative_to(ROOT).as_posix()}")
+    markdown_path.write_text(
+        build_markdown(title, date_str, time_str, body_text, image_name, image_alt_text, draft=args.draft),
+        encoding="utf-8",
+    )
+
+    rel_markdown_path = markdown_path.relative_to(ROOT).as_posix()
+    rel_image_path = image_target.relative_to(ROOT).as_posix() if image_target else None
     commit_message = f"tweet: {date_str} {slug}"
+    changed_paths = [rel_markdown_path]
+    if rel_image_path:
+        changed_paths.append(rel_image_path)
 
     try:
-        run_git(["add", "--", rel_path])
-        run_git(["commit", "--only", "-m", commit_message, "--", rel_path])
+        log_status("Staging files")
+        run_git(["add", "--", *changed_paths])
+        log_status(f"Creating commit '{commit_message}'")
+        run_git(["commit", "--only", "-m", commit_message, "--", *changed_paths])
         if not args.no_push:
+            log_status("Pushing to remote")
             run_git(["push"])
+            log_status("Push completed")
+        else:
+            log_status("Skipping push (--no-push)")
     except TweetError as exc:
         print(str(exc), file=sys.stderr)
         return 1
 
-    print(f"Published {rel_path}")
+    if rel_image_path:
+        print(f"Published {rel_markdown_path} with image {rel_image_path}")
+    else:
+        print(f"Published {rel_markdown_path}")
     return 0
 
 
