@@ -1,5 +1,5 @@
 ---
-title: ",000 less fuel and 65k pounds less CO2"
+title: "$13,000 less fuel and 65k pounds less CO2"
 date: "2026-02-18"
 time: "15:16:34"
 ---
