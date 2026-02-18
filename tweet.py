@@ -168,8 +168,13 @@ def parse_args() -> argparse.Namespace:
         description="Create a short note (optionally with embed HTML and image), then stage/commit/push only those new files."
     )
     parser.add_argument(
-        "text",
-        help='Tweet text. Example: uv run tweet.py "Shipping the fix now."',
+        "positional_text",
+        nargs="?",
+        help='Optional tweet text (positional form). Example: uv run tweet.py "Shipping the fix now."',
+    )
+    parser.add_argument(
+        "--text",
+        help="Optional tweet text (flag form). Can be used instead of positional text.",
     )
     parser.add_argument(
         "image_path",
@@ -206,10 +211,14 @@ def main() -> int:
     args = parse_args()
     log_status("Starting tweet publish flow")
 
-    body_text = args.text.strip()
-    if not body_text:
-        print("Tweet text cannot be empty.", file=sys.stderr)
-        return 1
+    body_parts: list[str] = []
+    positional_text = (args.positional_text or "").strip()
+    if positional_text:
+        body_parts.append(positional_text)
+
+    flag_text = (args.text or "").strip()
+    if flag_text:
+        body_parts.append(flag_text)
 
     if args.text_file:
         log_status("Reading --text-file content")
@@ -223,7 +232,12 @@ def main() -> int:
             print(f"Failed to read text file: {exc}", file=sys.stderr)
             return 1
         if appended_text:
-            body_text = f"{body_text}\n\n{appended_text}"
+            body_parts.append(appended_text)
+
+    body_text = "\n\n".join(body_parts)
+    if not body_text:
+        print("Tweet text cannot be empty. Provide --text, --text-file, or positional text.", file=sys.stderr)
+        return 1
 
     source_image: Path | None = None
     if args.image_path:
