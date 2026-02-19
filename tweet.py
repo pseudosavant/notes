@@ -177,14 +177,12 @@ def parse_args() -> argparse.Namespace:
         help="Optional tweet text (flag form). Can be used instead of positional text.",
     )
     parser.add_argument(
-        "image_path",
-        nargs="?",
+        "--image",
         help="Optional path to image file to include in the post.",
     )
     parser.add_argument(
-        "alt_text",
-        nargs="?",
-        help="Optional image alt text (used only when image_path is provided). Defaults to the image filename.",
+        "--alt-text",
+        help="Optional image alt text (used only when --image is provided). Defaults to the image filename.",
     )
     parser.add_argument(
         "--text-file",
@@ -204,7 +202,10 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Include draft: true in front matter.",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.alt_text and not args.image:
+        parser.error("--alt-text requires --image.")
+    return args
 
 
 def main() -> int:
@@ -240,9 +241,9 @@ def main() -> int:
         return 1
 
     source_image: Path | None = None
-    if args.image_path:
+    if args.image:
         log_status("Validating image path")
-        source_image = Path(args.image_path).expanduser()
+        source_image = Path(args.image).expanduser()
         if not source_image.is_file():
             print(f"Image file not found: {source_image}", file=sys.stderr)
             return 1

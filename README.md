@@ -104,13 +104,13 @@ uv run tweet.py "Shipping a small update."
 With image:
 
 ```bash
-uv run tweet.py "Shipping a small update." "C:\path\to\image.png"
+uv run tweet.py "Shipping a small update." --image "C:\path\to\image.png"
 ```
 
 With image and custom alt text:
 
 ```bash
-uv run tweet.py "Shipping a small update." "C:\path\to\image.png" "Alt text for accessibility"
+uv run tweet.py "Shipping a small update." --image "C:\path\to\image.png" --alt-text "Alt text for accessibility"
 ```
 
 With appended embed/file content:
@@ -131,7 +131,7 @@ Optional:
 uv run tweet.py --no-push "Drafting from terminal."
 ```
 
-If `alt_text` is omitted, the image filename is used.
+If `--alt-text` is omitted, the image filename is used.
 
 One-shot build:
 
