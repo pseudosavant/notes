@@ -1,5 +1,5 @@
 ---
-title: "AI is an Exoskeleton, not a coworker"
+title: "AI is an exoskeleton, not a coworker"
 date: "2026-02-19"
 time: "15:58:38"
 ---
