@@ -189,7 +189,7 @@ def read_config(config_path: Path) -> SiteConfig:
 def markdown_to_html(md_text: str) -> str:
     return markdown.markdown(
         md_text,
-        extensions=["fenced_code", "sane_lists", "smarty", "pymdownx.tilde"],
+        extensions=["fenced_code", "sane_lists", "smarty", "pymdownx.tilde", "pymdownx.magiclink"],
         output_format="html5",
     )
 
